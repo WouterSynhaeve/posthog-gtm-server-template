@@ -14,7 +14,12 @@ ___INFO___
   "version": 1,
   "securityGroups": [],
   "displayName": "Posthog Events - Server Side",
-  "categories": ["ANALYTICS", "SESSION_RECORDING", "HEAT_MAP", "DATA_WAREHOUSING"],
+  "categories": [
+    "ANALYTICS",
+    "SESSION_RECORDING",
+    "HEAT_MAP",
+    "DATA_WAREHOUSING"
+  ],
   "brand": {
     "id": "brand_dummy",
     "displayName": "Posthog",
@@ -279,6 +284,7 @@ if(data.posthogEventParameters && data.posthogEventParameters.length > 0) {
 // Build Other Parameters Object
 const current_url = getEventData("page_location");
 const currentUrlObject = parseUrl(current_url);
+const referrer = getEventData("page_referrer");
 let screen_resolutions = getEventData("screen_resolution") || ["0","0"];
 
 if(screen_resolutions.indexOf('x') > -1) {
@@ -291,8 +297,8 @@ let eventProperties = {
   "$device_id": posthogCookiesObject["$device_id"],
   "$host": currentUrlObject.hostname,
   "$pathname": currentUrlObject.pathname,
-  "$referrer": posthogCookiesObject["$referrer"],
-  "$referring_domain": currentUrlObject.pathname,
+  "$referrer": referrer,
+  "$referring_domain": parseUrl(referrer).hostname,
   "$screen_height": screen_resolutions[0],
   "$screen_width": screen_resolutions[1],
   "$useragent": getEventData("user_agent") || "",
