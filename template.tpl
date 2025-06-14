@@ -1,11 +1,3 @@
-___TERMS_OF_SERVICE___
-
-By creating or modifying this file you agree to Google Tag Manager's Community
-Template Gallery Developer Terms of Service available at
-https://developers.google.com/tag-manager/gallery-tos (or such other URL as
-Google may provide), as modified from time to time.
-
-
 ___INFO___
 
 {
@@ -134,8 +126,12 @@ ___TEMPLATE_PARAMETERS___
         "displayValue": "Custom Event"
       },
       {
-        "value": "pageView",
+        "value": "$pageview",
         "displayValue": "Pageview"
+      },
+      {
+        "value": "$identify",
+        "displayValue": "Identify"
       }
     ],
     "simpleValueType": true,
@@ -162,7 +158,8 @@ ___TEMPLATE_PARAMETERS___
             "displayValue": "Custom event name"
           }
         ],
-        "simpleValueType": true
+        "simpleValueType": true,
+        "enablingConditions": []
       },
       {
         "type": "TEXT",
@@ -211,6 +208,72 @@ ___TEMPLATE_PARAMETERS___
         "type": "EQUALS"
       }
     ]
+  },
+  {
+    "type": "GROUP",
+    "name": "posthogPersonPropertiesGroup",
+    "displayName": "Person Properties",
+    "groupStyle": "ZIPPY_OPEN",
+    "subParams": [
+      {
+        "type": "SIMPLE_TABLE",
+        "name": "posthogPersonPropertiesSet",
+        "displayName": "$set - Add person properties",
+        "simpleTableColumns": [
+          {
+            "defaultValue": "",
+            "displayName": "Key",
+            "name": "key",
+            "type": "TEXT"
+          },
+          {
+            "defaultValue": "",
+            "displayName": "Value",
+            "name": "value",
+            "type": "TEXT"
+          }
+        ]
+      },
+      {
+        "type": "SIMPLE_TABLE",
+        "name": "posthogPersonPropertiesSetOnce",
+        "displayName": "$set_once - Set properties if they were never been set before",
+        "simpleTableColumns": [
+          {
+            "defaultValue": "",
+            "displayName": "Key",
+            "name": "key",
+            "type": "TEXT"
+          },
+          {
+            "defaultValue": "",
+            "displayName": "Value",
+            "name": "value",
+            "type": "TEXT"
+          }
+        ]
+      },
+      {
+        "type": "SIMPLE_TABLE",
+        "name": "posthogPersonPropertiesUnset",
+        "displayName": "$unset - Remove person properties",
+        "simpleTableColumns": [
+          {
+            "defaultValue": "",
+            "displayName": "Key",
+            "name": "key",
+            "type": "TEXT"
+          }
+        ]
+      }
+    ],
+    "enablingConditions": [
+      {
+        "paramName": "posthogEventType",
+        "paramValue": "$identify",
+        "type": "EQUALS"
+      }
+    ]
   }
 ]
 
@@ -224,7 +287,9 @@ ___SANDBOXED_JS_FOR_SERVER___
 const sendHttpRequest = require('sendHttpRequest');
 const JSON = require('JSON');
 const getEventData = require('getEventData');
+const getAllEventData = require('getAllEventData');
 const parseUrl = require('parseUrl');
+const makeNumber = require('makeNumber');
 // const getRemoteAddress = require('getRemoteAddress');
 
 // Core Variables
@@ -241,16 +306,11 @@ if(data.posthogCloudAccountURL === "eu") {
 }
 
 // Event Variables
+const eventData = getAllEventData();
 let event_type = data.posthogEventType;
 let event_name = getEventData("event_name");
 
-if(event_type === "pageView") {
-  event_name = "$pageview";
-} else if(event_type === "customEvent") {
-  event_name = data.posthogEventNameDropdown === "eventData" ? event_name : data.posthogEventName;
-}
-
-const posthogCookies = getEventData("posthog_cookies") || "";
+const posthogCookies = getEventData("posthog_cookies") || '""';
 const posthogCookiesObject = JSON.parse(posthogCookies);
 let distinct_id_source = data.posthogSelectDistinctIdSource;
 let distinct_id;
@@ -263,6 +323,25 @@ if (distinct_id_source === "posthogCookieDistinctId" && !!posthogCookiesObject.d
   distinct_id = getEventData("client_id");
 }
 
+// Merge postBody with event parameters or other properties
+const mergePropertiesTable = (fromTable, toObj) => {
+  if (!toObj) {
+    toObj = {};
+  }
+  if (fromTable && fromTable.length > 0) {
+    fromTable.forEach(row => {
+      toObj[row.key] = row.value;
+    });
+  }
+  return toObj;
+};
+
+if(event_type === "customEvent") {
+  event_name = data.posthogEventNameDropdown === "eventData" ? event_name : data.posthogEventName;
+} else {
+  event_name = event_type;
+}
+
 // Build Root API Object
 let postBody = {
     "api_key": projectApiKey,
@@ -270,18 +349,20 @@ let postBody = {
     "distinct_id": distinct_id
 };
 
-// Build Event Parameters Object
-let eventParametersObject = {};
-if(data.posthogEventParameters && data.posthogEventParameters.length > 0) {
-  const eventParameters = data.posthogEventParameters; 
-  if(eventParameters.length > 0) {
-    eventParameters.forEach(row => {
-      eventParametersObject[row.key] = row.value;
+if (event_type == "$identify") {
+  // Append Person Properties in case of $identify event
+  postBody.properties = {};
+  postBody.properties['$set'] = mergePropertiesTable(data.posthogPersonPropertiesSet, postBody.properties['$set']);
+  postBody.properties['$set_once'] = mergePropertiesTable(data.posthogPersonPropertiesSetOnce, postBody.properties['$set_once']);
+  if(data.posthogPersonPropertiesUnset && data.posthogPersonPropertiesUnset.length > 0) {
+    postBody.properties['$unset'] = [];
+    data.posthogPersonPropertiesUnset.forEach(row => {
+      postBody.properties['$unset'].push(row.key);
     });
   }
-}
-
-// Build Other Parameters Object
+} else {
+  // Append Event Parameters and Event Properties in case of $pageview or custom event
+  // Build Event Parameters Object
 const current_url = getEventData("page_location");
 const currentUrlObject = parseUrl(current_url);
 const referrer = getEventData("page_referrer");
@@ -307,17 +388,8 @@ let eventProperties = {
   "$lib": "api"
 };
 
-// Merge Event and Other Parameters Objects
-const mergeObj = (fromObj, toObj) => {
-  for (let key in fromObj) {
-    if (fromObj.hasOwnProperty(key)) {
-      toObj[key] = fromObj[key];
-    }
-  }
-  return toObj;
-};
-
-postBody.properties = mergeObj(eventProperties, eventParametersObject);
+  postBody.properties = mergePropertiesTable(data.posthogEventParameters, eventProperties);
+}
 
 // Send POST request
 sendHttpRequest(endpointUrl, (statusCode, headers, body) => {
@@ -390,6 +462,6 @@ scenarios: []
 
 ___NOTES___
 
-Created on 08/02/2023, 16:30:02
+Updated on 14/06/2025, 22:10:02
 
 
