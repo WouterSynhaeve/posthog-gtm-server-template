@@ -117,6 +117,16 @@ ___TEMPLATE_PARAMETERS___
   },
   {
     "type": "SELECT",
+    "name": "posthogEventTimestamp",
+    "displayName": "Override Event Timestamp",
+    "macrosInSelect": true,
+    "selectItems": [],
+    "simpleValueType": true,
+    "notSetText": "- Don\u0027t override -",
+    "help": "Posthog recommends using the ISO 8601 format. Ten and thirteen digit numbers are also accepted as timestamps. More about \u003ca href\u003d\"https://posthog.com/docs/data/timestamps#recognized-formats\"\u003etimestamp detection\u003c/a\u003e."
+  },
+  {
+    "type": "SELECT",
     "name": "posthogEventType",
     "displayName": "Select the PostHog Event Type",
     "macrosInSelect": false,
@@ -311,7 +321,8 @@ const JSON = require('JSON');
 const getEventData = require('getEventData');
 const getAllEventData = require('getAllEventData');
 const parseUrl = require('parseUrl');
-const makeNumber = require('makeNumber');
+//const makeNumber = require('makeNumber');
+const makeString = require('makeString');
 // const getRemoteAddress = require('getRemoteAddress');
 
 // Core Variables
@@ -404,7 +415,11 @@ let postBody = {
   "properties": {}
 };
 
-if(data.includeAllUserData) {
+if (data.posthogEventTimestamp) {
+  postBody.timestamp = makeString(data.posthogEventTimestamp);
+}
+
+if (data.includeAllUserData) {
   // Add all user_data properties with Posthog's $set object
   const userData = getEventData('user_data');
   postBody.properties['$set'] = {};
@@ -568,5 +583,5 @@ scenarios: []
 
 ___NOTES___
 
-Updated on 15/06/2025, 12:26:03
+Updated on 15/06/2025, 12:45:26
 
