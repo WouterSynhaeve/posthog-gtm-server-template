@@ -444,30 +444,31 @@ if (event_type == "$identify") {
 } else {
   // Append Event Parameters and Event Properties in case of $pageview or custom event
   // Build Event Parameters Object
-const current_url = getEventData("page_location");
-const currentUrlObject = parseUrl(current_url);
-const referrer = getEventData("page_referrer");
-let screen_resolutions = getEventData("screen_resolution") || ["0","0"];
+  const current_url = getEventData("page_location");
+  const currentUrlObject = parseUrl(current_url);
+  const referrer = getEventData("page_referrer");
+  const referring_domain = referrer ? parseUrl(referrer).hostname : "";
+  let screen_resolutions = getEventData("screen_resolution") || ["0","0"];
 
-if(screen_resolutions.indexOf('x') > -1) {
-  screen_resolutions = screen_resolutions.split('x');
-}
+  if(screen_resolutions.indexOf('x') > -1) {
+    screen_resolutions = screen_resolutions.split('x');
+  }
 
-let eventProperties = {
-  "$session_id": posthogCookiesObject["$sesid"][1],
-  "$current_url": current_url,
-  "$device_id": posthogCookiesObject["$device_id"],
-  "$host": currentUrlObject.hostname,
-  "$pathname": currentUrlObject.pathname,
-  "$referrer": referrer,
-  "$referring_domain": parseUrl(referrer).hostname,
-  "$screen_height": screen_resolutions[0],
-  "$screen_width": screen_resolutions[1],
-  "$useragent": getEventData("user_agent") || "",
-  "$ip": getEventData("ip_override") || "",
-  "language": getEventData("language") || "",
-  "$lib": "api"
-};
+  let eventProperties = {
+    "$session_id": posthogCookiesObject["$sesid"][1],
+    "$current_url": current_url,
+    "$device_id": posthogCookiesObject["$device_id"],
+    "$host": currentUrlObject.hostname,
+    "$pathname": currentUrlObject.pathname,
+    "$referrer": referrer,
+    "$referring_domain": referring_domain,
+    "$screen_height": screen_resolutions[0],
+    "$screen_width": screen_resolutions[1],
+    "$useragent": getEventData("user_agent") || "",
+    "$ip": getEventData("ip_override") || "",
+    "language": getEventData("language") || "",
+    "$lib": "api"
+  };
 
   postBody.properties = mergeObj(eventProperties, postBody.properties);
   postBody.properties = mergePropertiesTable(data.posthogEventParameters, postBody.properties);
@@ -567,5 +568,5 @@ scenarios: []
 
 ___NOTES___
 
-Updated on 15/06/2025, 12:19:55
+Updated on 15/06/2025, 12:26:03
 
