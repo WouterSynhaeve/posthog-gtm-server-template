@@ -281,7 +281,7 @@ ___TEMPLATE_PARAMETERS___
 ___SANDBOXED_JS_FOR_SERVER___
 
 // Test APIs
-// const logToConsole = require('logToConsole');
+const logToConsole = require('logToConsole');
 
 // Core APIs
 const sendHttpRequest = require('sendHttpRequest');
@@ -344,8 +344,8 @@ if(event_type === "customEvent") {
 
 // Build Root API Object
 let postBody = {
-    "api_key": projectApiKey,
-    "event": event_name,
+  "api_key": projectApiKey,
+  "event": event_name,
     "distinct_id": distinct_id
 };
 
@@ -390,6 +390,9 @@ let eventProperties = {
 
   postBody.properties = mergePropertiesTable(data.posthogEventParameters, eventProperties);
 }
+
+
+//logToConsole(postBody.properties);
 
 // Send POST request
 sendHttpRequest(endpointUrl, (statusCode, headers, body) => {
@@ -462,6 +465,6 @@ scenarios: []
 
 ___NOTES___
 
-Updated on 14/06/2025, 22:10:02
+Updated on 15/06/2025, 10:07:45
 
 
