@@ -182,6 +182,17 @@ ___TEMPLATE_PARAMETERS___
         ]
       },
       {
+        "type": "CHECKBOX",
+        "name": "includeEcommerceParams",
+        "checkboxText": "Include ecommerce parameters from Event Data",
+        "checkboxItems": [
+          {
+            "value": true
+          }
+        ],
+        "help": "If \u003ca href\u003d\"https://developers.google.com/analytics/devguides/collection/ga4/reference/events?client_type\u003dgtm\"\u003erecommended event\u003c/a\u003e parameters are present in the event data, they will be appended to the Posthog event parameters. No need to manually add each property below."
+      },
+      {
         "type": "SIMPLE_TABLE",
         "name": "posthogEventParameters",
         "displayName": "Add event parameters",
@@ -215,6 +226,17 @@ ___TEMPLATE_PARAMETERS___
     "displayName": "Person Properties",
     "groupStyle": "ZIPPY_OPEN",
     "subParams": [
+      {
+        "type": "CHECKBOX",
+        "name": "includeAllUserData",
+        "checkboxText": "Include all User Data",
+        "checkboxItems": [
+          {
+            "value": true
+          }
+        ],
+        "help": "If checked, every \u003cstrong\u003euser_data\u003c/strong\u003e property from the event data will be pushed to the Posthog person through the \u003cstrong\u003e$set\u003c/strong\u003e function. No need to manually add each property below."
+      },
       {
         "type": "SIMPLE_TABLE",
         "name": "posthogPersonPropertiesSet",
@@ -270,8 +292,8 @@ ___TEMPLATE_PARAMETERS___
     "enablingConditions": [
       {
         "paramName": "posthogEventType",
-        "paramValue": "$identify",
-        "type": "EQUALS"
+        "paramValue": "$pageview",
+        "type": "NOT_EQUALS"
       }
     ]
   }
@@ -323,6 +345,16 @@ if (distinct_id_source === "posthogCookieDistinctId" && !!posthogCookiesObject.d
   distinct_id = getEventData("client_id");
 }
 
+// Merge objects
+const mergeObj = (fromObj, toObj) => {
+  for (let key in fromObj) {
+    if (fromObj.hasOwnProperty(key)) {
+      toObj[key] = fromObj[key];
+    }
+  }
+  return toObj;
+};
+
 // Merge postBody with event parameters or other properties
 const mergePropertiesTable = (fromTable, toObj) => {
   if (!toObj) {
@@ -336,7 +368,29 @@ const mergePropertiesTable = (fromTable, toObj) => {
   return toObj;
 };
 
-if(event_type === "customEvent") {
+const addEcommerceData = (eventData, toObj) => {
+  const ecommerceProperties = [
+    'method', 'category',
+    'search_term', 'search_results_count',
+    'filter', 'page', 'page_size', 'view_size',
+    'content_type', 'content_id',
+    'items', 'item_list_id', 'item_list_name', 'item_id',
+    'shipping', 'shipping_tier', 'shipping_country',
+    'payment_type', 'transaction_id',
+    'coupon', 'currency', 'value', 'value_to_pay', 'tax',
+    'creative_name', 'creative_slot', 'promotion_id', 'promotion_name',
+    'company_id', 'company_type', 'customer_type', 'country',
+    'purpose', 'project_size', 'project_timing'
+  ];
+  ecommerceProperties.forEach(prop => {
+    if (eventData.hasOwnProperty(prop)) {
+      toObj[prop] = eventData[prop];
+    }
+  });
+  return toObj;
+};
+
+if (event_type === "customEvent") {
   event_name = data.posthogEventNameDropdown === "eventData" ? event_name : data.posthogEventName;
 } else {
   event_name = event_type;
@@ -346,12 +400,35 @@ if(event_type === "customEvent") {
 let postBody = {
   "api_key": projectApiKey,
   "event": event_name,
-    "distinct_id": distinct_id
+  "distinct_id": distinct_id,
+  "properties": {}
 };
 
-if (event_type == "$identify") {
+if(data.includeAllUserData) {
+  // Add all user_data properties with Posthog's $set object
+  const userData = getEventData('user_data');
+  postBody.properties['$set'] = {};
+
+  for (const key in userData) {
+    if (key == 'user_id') {
+      // Map the GA4 user_id to Posthog's distinct_id
+      //postBody.properties['$set']['distinct_id'] = userData[key];
+      // Not for now, set user_id without mapping:
+      postBody.properties['$set'][key] = userData[key];
+    } else if (key == 'address' && typeof userData['address'] === 'object') {
+      // If 'address' is an object each key kan be added to the root of the person.
+      // Else it will be added as the original array.
+      for (const key2 in userData['address']) {
+        postBody.properties['$set'][key2] = userData['address'][key2];
+      }
+    } else {
+      postBody.properties['$set'][key] = userData[key];
+    }
+  }
+}
+
+if (event_type != "$pageview") {
   // Append Person Properties in case of $identify event
-  postBody.properties = {};
   postBody.properties['$set'] = mergePropertiesTable(data.posthogPersonPropertiesSet, postBody.properties['$set']);
   postBody.properties['$set_once'] = mergePropertiesTable(data.posthogPersonPropertiesSetOnce, postBody.properties['$set_once']);
   if(data.posthogPersonPropertiesUnset && data.posthogPersonPropertiesUnset.length > 0) {
@@ -360,6 +437,10 @@ if (event_type == "$identify") {
       postBody.properties['$unset'].push(row.key);
     });
   }
+}
+
+if (event_type == "$identify") {
+
 } else {
   // Append Event Parameters and Event Properties in case of $pageview or custom event
   // Build Event Parameters Object
@@ -388,11 +469,14 @@ let eventProperties = {
   "$lib": "api"
 };
 
-  postBody.properties = mergePropertiesTable(data.posthogEventParameters, eventProperties);
+  postBody.properties = mergeObj(eventProperties, postBody.properties);
+  postBody.properties = mergePropertiesTable(data.posthogEventParameters, postBody.properties);
+  if (data.includeEcommerceParams)
+    postBody.properties = addEcommerceData(eventData, postBody.properties);
 }
 
 
-//logToConsole(postBody.properties);
+//logToConsole(JSON.stringify(postBody.properties));
 
 // Send POST request
 sendHttpRequest(endpointUrl, (statusCode, headers, body) => {
@@ -454,6 +538,24 @@ ___SERVER_PERMISSIONS___
       "isEditedByUser": true
     },
     "isRequired": true
+  },
+  {
+    "instance": {
+      "key": {
+        "publicId": "logging",
+        "versionId": "1"
+      },
+      "param": [
+        {
+          "key": "environments",
+          "value": {
+            "type": 1,
+            "string": "debug"
+          }
+        }
+      ]
+    },
+    "isRequired": true
   }
 ]
 
@@ -465,6 +567,5 @@ scenarios: []
 
 ___NOTES___
 
-Updated on 15/06/2025, 10:07:45
-
+Updated on 15/06/2025, 12:19:55
 
