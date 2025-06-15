@@ -142,6 +142,10 @@ ___TEMPLATE_PARAMETERS___
       {
         "value": "$identify",
         "displayValue": "Identify"
+      },
+      {
+        "value": "$groupidentify",
+        "displayValue": "Group Identify"
       }
     ],
     "simpleValueType": true,
@@ -204,8 +208,8 @@ ___TEMPLATE_PARAMETERS___
       },
       {
         "type": "SIMPLE_TABLE",
-        "name": "posthogEventParameters",
-        "displayName": "Add event parameters",
+        "name": "posthogEventProperties",
+        "displayName": "Add event properties",
         "simpleTableColumns": [
           {
             "defaultValue": "",
@@ -219,7 +223,8 @@ ___TEMPLATE_PARAMETERS___
             "name": "value",
             "type": "TEXT"
           }
-        ]
+        ],
+        "newRowButtonText": "New property"
       }
     ],
     "enablingConditions": [
@@ -256,7 +261,8 @@ ___TEMPLATE_PARAMETERS___
             "defaultValue": "",
             "displayName": "Key",
             "name": "key",
-            "type": "TEXT"
+            "type": "TEXT",
+            "isUnique": true
           },
           {
             "defaultValue": "",
@@ -264,18 +270,20 @@ ___TEMPLATE_PARAMETERS___
             "name": "value",
             "type": "TEXT"
           }
-        ]
+        ],
+        "newRowButtonText": "New property"
       },
       {
         "type": "SIMPLE_TABLE",
         "name": "posthogPersonPropertiesSetOnce",
-        "displayName": "$set_once - Set properties if they were never been set before",
+        "displayName": "$set_once - Set properties only if they were never been set before",
         "simpleTableColumns": [
           {
             "defaultValue": "",
             "displayName": "Key",
             "name": "key",
-            "type": "TEXT"
+            "type": "TEXT",
+            "isUnique": true
           },
           {
             "defaultValue": "",
@@ -283,7 +291,8 @@ ___TEMPLATE_PARAMETERS___
             "name": "value",
             "type": "TEXT"
           }
-        ]
+        ],
+        "newRowButtonText": "New property"
       },
       {
         "type": "SIMPLE_TABLE",
@@ -296,16 +305,102 @@ ___TEMPLATE_PARAMETERS___
             "name": "key",
             "type": "TEXT"
           }
+        ],
+        "newRowButtonText": "New property"
+      },
+      {
+        "type": "SIMPLE_TABLE",
+        "name": "posthogPersonPropertiesGroups",
+        "displayName": "$groups - Associate person with a group",
+        "simpleTableColumns": [
+          {
+            "defaultValue": "",
+            "displayName": "Group Type",
+            "name": "key",
+            "type": "TEXT",
+            "valueHint": "i.e. \u0027company\u0027"
+          },
+          {
+            "defaultValue": "",
+            "displayName": "Group Key",
+            "name": "value",
+            "type": "TEXT",
+            "valueHint": "Entity ID (i.e. ID of the company)"
+          }
+        ],
+        "help": "After a group is created, you can associate events with it by passing the group type and the key of that group entity. Do this for every event you wish to associate with the group.",
+        "newRowButtonText": "New group"
+      }
+    ],
+    "enablingConditions": [
+      {
+        "paramName": "posthogEventType",
+        "paramValue": "customEvent",
+        "type": "EQUALS"
+      },
+      {
+        "paramName": "posthogEventType",
+        "paramValue": "$identify",
+        "type": "EQUALS"
+      }
+    ]
+  },
+  {
+    "type": "GROUP",
+    "name": "posthogGroupIdentifyGroup",
+    "displayName": "Group Identify",
+    "groupStyle": "ZIPPY_OPEN",
+    "subParams": [
+      {
+        "type": "LABEL",
+        "name": "posthogGroupIdentifyInfo",
+        "displayName": "Before events can be associated with a group, the group must be created here first."
+      },
+      {
+        "type": "TEXT",
+        "name": "posthogGroupIdentifyType",
+        "displayName": "Group Type",
+        "simpleValueType": true,
+        "valueHint": "i.e. \u0027company\u0027"
+      },
+      {
+        "type": "TEXT",
+        "name": "posthogGroupIdentifyKey",
+        "displayName": "Key",
+        "simpleValueType": true,
+        "valueHint": "Entity ID (i.e. ID of the company)"
+      },
+      {
+        "type": "SIMPLE_TABLE",
+        "name": "posthogGroupIdentifySet",
+        "displayName": "$group_set - Add group properties",
+        "simpleTableColumns": [
+          {
+            "defaultValue": "",
+            "displayName": "Key",
+            "name": "key",
+            "type": "TEXT",
+            "isUnique": true,
+            "valueHint": "i.e. \u0027name\u0027"
+          },
+          {
+            "defaultValue": "",
+            "displayName": "Value",
+            "name": "value",
+            "type": "TEXT",
+            "valueHint": "i.e. name of the company"
+          }
         ]
       }
     ],
     "enablingConditions": [
       {
         "paramName": "posthogEventType",
-        "paramValue": "$pageview",
-        "type": "NOT_EQUALS"
+        "paramValue": "$groupidentify",
+        "type": "EQUALS"
       }
-    ]
+    ],
+    "help": "Call $groupidentify to create or update a group. It will also create the group type if it doesn\u0027t exist."
   }
 ]
 
@@ -442,8 +537,8 @@ if (data.includeAllUserData) {
   }
 }
 
-if (event_type != "$pageview") {
-  // Append Person Properties in case of $identify event
+if (event_type == "$identify" || event_type == "customEvent") {
+  // Append Person Properties in case of $identify or custom event
   postBody.properties['$set'] = mergePropertiesTable(data.posthogPersonPropertiesSet, postBody.properties['$set']);
   postBody.properties['$set_once'] = mergePropertiesTable(data.posthogPersonPropertiesSetOnce, postBody.properties['$set_once']);
   if(data.posthogPersonPropertiesUnset && data.posthogPersonPropertiesUnset.length > 0) {
@@ -452,11 +547,17 @@ if (event_type != "$pageview") {
       postBody.properties['$unset'].push(row.key);
     });
   }
+
+  // Associate event with groups
+  postBody.properties['$groups'] = mergePropertiesTable(data.posthogPersonPropertiesGroups, postBody.properties['$groups']);
 }
 
-if (event_type == "$identify") {
-
-} else {
+if (event_type == "$groupidentify") {
+  postBody.properties['$group_type'] = data.posthogGroupIdentifyType;
+  postBody.properties['$group_key'] = data.posthogGroupIdentifyKey;
+  postBody.properties['$group_set'] = mergePropertiesTable(data.posthogGroupIdentifySet, postBody.properties['$group_set']);
+}
+else if (event_type == "$pageview" || event_type == "customEvent") {
   // Append Event Parameters and Event Properties in case of $pageview or custom event
   // Build Event Parameters Object
   const current_url = getEventData("page_location");
@@ -486,7 +587,7 @@ if (event_type == "$identify") {
   };
 
   postBody.properties = mergeObj(eventProperties, postBody.properties);
-  postBody.properties = mergePropertiesTable(data.posthogEventParameters, postBody.properties);
+  postBody.properties = mergePropertiesTable(data.posthogEventProperties, postBody.properties);
   if (data.includeEcommerceParams)
     postBody.properties = addEcommerceData(eventData, postBody.properties);
 }
@@ -579,9 +680,10 @@ ___SERVER_PERMISSIONS___
 ___TESTS___
 
 scenarios: []
+setup: ''
 
 
 ___NOTES___
 
-Updated on 15/06/2025, 12:45:26
+Updated on 15/06/2025, 12:54:02
 
