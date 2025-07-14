@@ -564,27 +564,31 @@ else if (event_type == "$pageview" || event_type == "customEvent") {
   const currentUrlObject = parseUrl(current_url);
   const referrer = getEventData("page_referrer");
   const referring_domain = referrer ? parseUrl(referrer).hostname : "";
-  let screen_resolutions = getEventData("screen_resolution") || ["0","0"];
+  let screen_resolutions = getEventData("screen_resolution");
 
-  if(screen_resolutions.indexOf('x') > -1) {
+  if(screen_resolutions && screen_resolutions.indexOf('x') > -1) {
     screen_resolutions = screen_resolutions.split('x');
   }
 
   let eventProperties = {
-    "$session_id": posthogCookiesObject["$sesid"][1],
     "$current_url": current_url,
-    "$device_id": posthogCookiesObject["$device_id"],
-    "$host": currentUrlObject.hostname,
-    "$pathname": currentUrlObject.pathname,
+    "$host": currentUrlObject && currentUrlObject.hostname,
+    "$pathname": currentUrlObject && currentUrlObject.pathname,
     "$referrer": referrer,
     "$referring_domain": referring_domain,
-    "$screen_height": screen_resolutions[0],
-    "$screen_width": screen_resolutions[1],
-    "$useragent": getEventData("user_agent") || "",
-    "$ip": getEventData("ip_override") || "",
-    "language": getEventData("language") || "",
+    "$screen_height": screen_resolutions && screen_resolutions[0],
+    "$screen_width": screen_resolutions && screen_resolutions[1],
+    "$useragent": getEventData("user_agent") || undefined,
+    "$ip": getEventData("ip_override") || undefined,
+    "language": getEventData("language") || undefined,
     "$lib": "api"
   };
+  
+  // posthogCookies data is optional for $identify or $groupidentify events
+  if (!!posthogCookiesObject) {
+    eventProperties["$session_id"] = posthogCookiesObject["$sesid"][1] || undefined;
+    eventProperties["$device_id"] = posthogCookiesObject["$device_id"] || undefined;
+  }
 
   postBody.properties = mergeObj(eventProperties, postBody.properties);
   postBody.properties = mergePropertiesTable(data.posthogEventProperties, postBody.properties);
