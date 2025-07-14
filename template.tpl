@@ -422,7 +422,7 @@ const makeString = require('makeString');
 
 // Core Variables
 const projectApiKey = data.posthogProjectAPIKey;
-let endpointUrl = "https://app.posthog.com/capture/";
+let endpointUrl = "https://app.posthog.com/i/v0/e/";
 
 // Determine API endpoint based on Posthog account type
 if(data.posthogEndPointSelection !== "cloud") {
@@ -430,7 +430,7 @@ if(data.posthogEndPointSelection !== "cloud") {
 }
 
 if(data.posthogCloudAccountURL === "eu") {
-  endpointUrl = "https://eu.posthog.com/capture/";
+  endpointUrl = "https://eu.i.posthog.com/i/v0/e/";
 }
 
 // Event Variables
@@ -689,5 +689,5 @@ setup: ''
 
 ___NOTES___
 
-Updated on 15/06/2025, 12:54:02
+Updated on 14/07/2025, 21:39:58
 
