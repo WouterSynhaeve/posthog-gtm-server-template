@@ -578,7 +578,7 @@ else if (event_type == "$pageview" || event_type == "customEvent") {
     "$referring_domain": referring_domain,
     "$screen_height": screen_resolutions && screen_resolutions[0],
     "$screen_width": screen_resolutions && screen_resolutions[1],
-    "$useragent": getEventData("user_agent") || undefined,
+    "$raw_user_agent": getEventData("user_agent") || undefined,
     "$ip": getEventData("ip_override") || undefined,
     "language": getEventData("language") || undefined,
     "$lib": "api"
